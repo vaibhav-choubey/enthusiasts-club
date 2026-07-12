@@ -128,8 +128,14 @@ async function startCheckout(posterId, email) {
       cancelUrl: location.origin + location.pathname + "?purchase=cancelled",
     }),
   });
-  const out = await res.json();
+  let out;
+  try {
+    out = await res.json();
+  } catch {
+    throw new Error(`Checkout service returned an unexpected response (status ${res.status}). Please try again.`);
+  }
   if (out.error) throw new Error(out.error);
+  if (!out.url) throw new Error("Checkout service didn't return a checkout URL. Please try again.");
   return out; // { url, sessionId }
 }
 
