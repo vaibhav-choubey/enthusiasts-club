@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>News & Articles — The Enthusiasts Club</title>
+<link rel="stylesheet" href="ec-style.css" />
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <div class="eyebrow">Newsroom</div>
+    <h2 style="font-size:30px;">News &amp; Articles</h2>
+    <p style="color:var(--grey); max-width:640px;">Plain-language coverage of the automobile industry — EVs and hybrids, buying guides, market trends, reviews, and safety. Free to read, no sign-up.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div class="container">
+    <div class="filter-row" id="filterRow"></div>
+    <div class="card-grid" id="articleGrid"></div>
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<script src="ec-data.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+  renderChrome("news");
+
+  let activeCategory = "All";
+  const params = new URLSearchParams(location.search);
+  const openArticleId = params.get("article");
+
+  function buildFilters() {
+    const row = document.getElementById("filterRow");
+    row.innerHTML = NEWS_CATEGORIES.map((c) =>
+      `<button class="filter-pill${c === activeCategory ? " active" : ""}" data-cat="${c}">${c}</button>`
+    ).join("");
+    row.querySelectorAll(".filter-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeCategory = btn.dataset.cat;
+        buildFilters();
+        buildArticles();
+      });
+    });
+  }
+
+  function relatedCarsHtml(ids) {
+    if (!ids || !ids.length) return "";
+    const chips = ids.map((id) => {
+      const c = getCarById(id);
+      return c ? `<a href="ec-compare.html?add=${c.id}" class="badge badge-cat" style="margin-right:6px;">${c.brand} ${c.model}</a>` : "";
+    }).join("");
+    return `<div style="margin-top:12px;"><div style="font-size:11.5px; font-weight:700; color:var(--grey); text-transform:uppercase; margin-bottom:6px;">See these cars compared</div>${chips}</div>`;
+  }
+
+  function buildArticles() {
+    const grid = document.getElementById("articleGrid");
+    const list = [...NEWS]
+      .filter((n) => activeCategory === "All" || n.category === activeCategory)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    grid.innerHTML = list.map((n) => `
+      <div class="card news-card" id="article-${n.id}">
+        <div class="news-thumb">📰</div>
+        <span class="badge badge-cat">${n.category}</span>
+        <h3 style="margin-top:10px;">${n.title}</h3>
+        <div class="news-meta">${new Date(n.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} &middot; ${n.readTime} read</div>
+        <p>${n.excerpt}</p>
+        <span class="read-more" data-id="${n.id}">Read full article &darr;</span>
+        <div class="article-body" id="body-${n.id}">
+          <p>${n.body}</p>
+          ${relatedCarsHtml(n.relatedCarIds)}
+        </div>
+      </div>
+    `).join("") || `<p style="color:var(--grey);">No articles in this category yet.</p>`;
+
+    grid.querySelectorAll(".read-more").forEach((el) => {
+      el.addEventListener("click", () => {
+        const body = document.getElementById("body-" + el.dataset.id);
+        const isOpen = body.classList.toggle("open");
+        el.textContent = isOpen ? "Hide article ↑" : "Read full article ↓";
+      });
+    });
+
+    if (openArticleId) {
+      const body = document.getElementById("body-" + openArticleId);
+      if (body) {
+        body.classList.add("open");
+        const el = grid.querySelector(`.read-more[data-id="${openArticleId}"]`);
+        if (el) el.textContent = "Hide article ↑";
+        document.getElementById("article-" + openArticleId).scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  }
+
+  buildFilters();
+  buildArticles();
+</script>
+</body>
+</html>

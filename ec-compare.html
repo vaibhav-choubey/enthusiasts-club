@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Compare Cars — The Enthusiasts Club</title>
+<link rel="stylesheet" href="ec-style.css" />
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <div class="eyebrow">Free comparison tool</div>
+    <h2 style="font-size:30px;">Compare Cars</h2>
+    <p style="color:var(--grey); max-width:640px;">Pick up to 4 cars and see them side by side across pricing, performance, safety, technology, and true ownership cost. The best number in each row is highlighted.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div class="container">
+
+    <div class="compare-picker">
+      <select id="carSelect"></select>
+      <button class="btn btn-navy" id="addBtn">+ Add to comparison</button>
+    </div>
+    <div class="compare-picker" id="chipRow"></div>
+
+    <div id="emptyState" style="color:var(--grey); padding:30px 0;">Add at least 2 cars to see a comparison.</div>
+    <div style="overflow-x:auto;">
+      <table class="compare-table" id="compareTable" style="display:none;"></table>
+    </div>
+    <p id="winnerSummary" style="margin-top:18px; font-size:14px; color:var(--navy); font-weight:600;"></p>
+
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<script src="ec-data.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+  renderChrome("compare");
+
+  const MAX_CARS = 4;
+  let selected = [];
+
+  // Row definitions: label, group, getter, format, better ("high" | "low" | null)
+  const ROWS = [
+    { group: "Pricing", label: "MSRP", get: (c) => c.price, fmt: (v) => formatPrice(v), better: "low" },
+    { group: "Pricing", label: "Est. annual maintenance", get: (c) => c.annualMaintenance, fmt: (v) => formatPrice(v) + "/yr", better: "low" },
+    { group: "Performance", label: "Powertrain", get: (c) => c.powertrain, fmt: (v) => v, better: null },
+    { group: "Performance", label: "0–60 mph", get: (c) => c.zeroToSixty, fmt: (v) => v + "s", better: "low" },
+    { group: "Performance", label: "Fuel economy (city/hwy)", get: (c) => c.mpgCity, fmt: (v, c) => c.mpgCity ? c.mpgCity + " / " + c.mpgHwy + " mpg" : "—", better: "high" },
+    { group: "Performance", label: "EV range", get: (c) => c.rangeMiles || 0, fmt: (v, c) => c.rangeMiles ? c.rangeMiles + " mi" : "—", better: "high" },
+    { group: "Performance", label: "AWD available", get: (c) => (c.awd ? 1 : 0), fmt: (v, c) => (c.awd ? "Yes" : "No"), better: "high" },
+    { group: "Dimensions & Capacity", label: "Seats", get: (c) => c.seats, fmt: (v) => v, better: "high" },
+    { group: "Dimensions & Capacity", label: "Cargo space", get: (c) => c.cargoCuFt, fmt: (v) => v + " cu ft", better: "high" },
+    { group: "Safety", label: "Safety rating", get: (c) => c.safetyRating, fmt: (v) => "★".repeat(v) + "☆".repeat(5 - v), better: "high" },
+    { group: "Technology", label: "Tech score (1–10)", get: (c) => c.techScore, fmt: (v) => v + "/10", better: "high" },
+    { group: "Ownership", label: "Warranty", get: (c) => c.warrantyYears, fmt: (v, c) => c.warrantyYears + " yr / " + c.warrantyMiles.toLocaleString() + " mi", better: "high" },
+    { group: "Ownership", label: "Reliability score (1–10)", get: (c) => c.reliabilityScore, fmt: (v) => v + "/10", better: "high" },
+  ];
+
+  function populateSelect() {
+    const sel = document.getElementById("carSelect");
+    sel.innerHTML = CARS
+      .filter((c) => !selected.includes(c.id))
+      .map((c) => `<option value="${c.id}">${c.brand} ${c.model} — ${formatPrice(c.price)}</option>`)
+      .join("");
+  }
+
+  function addCar(id) {
+    if (!id || selected.includes(id) || selected.length >= MAX_CARS) return;
+    selected.push(id);
+    render();
+  }
+  function removeCar(id) {
+    selected = selected.filter((s) => s !== id);
+    render();
+  }
+
+  function renderChips() {
+    const row = document.getElementById("chipRow");
+    row.innerHTML = selected.map((id) => {
+      const c = getCarById(id);
+      return `<div class="car-chip"><span class="swatch"></span>${c.brand} ${c.model}<button data-id="${id}">✕</button></div>`;
+    }).join("");
+    row.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => removeCar(b.dataset.id)));
+  }
+
+  function renderTable() {
+    const table = document.getElementById("compareTable");
+    const empty = document.getElementById("emptyState");
+    const summary = document.getElementById("winnerSummary");
+
+    if (selected.length < 2) {
+      table.style.display = "none";
+      empty.style.display = "block";
+      summary.textContent = "";
+      return;
+    }
+    empty.style.display = "none";
+    table.style.display = "table";
+
+    const cars = selected.map(getCarById);
+
+    let html = "<thead><tr><th>Spec</th>" + cars.map((c) => `<th>${c.brand} ${c.model}</th>`).join("") + "</tr></thead><tbody>";
+
+    let currentGroup = null;
+    const winCounts = {};
+    cars.forEach((c) => (winCounts[c.id] = 0));
+
+    ROWS.forEach((row) => {
+      if (row.group !== currentGroup) {
+        currentGroup = row.group;
+        html += `<tr class="group-row"><td colspan="${cars.length + 1}">${currentGroup}</td></tr>`;
+      }
+      const values = cars.map((c) => row.get(c));
+      let winnerVal = null;
+      if (row.better === "high") winnerVal = Math.max(...values.filter((v) => typeof v === "number"));
+      if (row.better === "low") winnerVal = Math.min(...values.filter((v) => typeof v === "number"));
+
+      html += `<tr><td class="row-label">${row.label}</td>`;
+      cars.forEach((c, i) => {
+        const v = values[i];
+        const isWinner = row.better && typeof v === "number" && v === winnerVal && new Set(values).size > 1;
+        if (isWinner) winCounts[c.id]++;
+        html += `<td class="${isWinner ? "winner" : ""}">${row.fmt(v, c)}</td>`;
+      });
+      html += "</tr>";
+    });
+    html += "</tbody>";
+    table.innerHTML = html;
+
+    const best = cars.reduce((a, b) => (winCounts[b.id] > winCounts[a.id] ? b : a));
+    summary.textContent = `Quick read: the ${best.brand} ${best.model} wins the most categories here (${winCounts[best.id]} of ${ROWS.filter(r=>r.better).length}) — scroll the table for the full picture, since price and priorities matter more than a raw tally.`;
+  }
+
+  function render() {
+    populateSelect();
+    renderChips();
+    renderTable();
+  }
+
+  document.getElementById("addBtn").addEventListener("click", () => {
+    addCar(document.getElementById("carSelect").value);
+  });
+
+  // Pre-fill from ?add=id (used by links from Home/News/Find My Car)
+  const params = new URLSearchParams(location.search);
+  const addParam = params.get("add");
+  if (addParam && getCarById(addParam)) selected.push(addParam);
+  const addAllParam = params.get("addAll");
+  if (addAllParam) {
+    addAllParam.split(",").forEach((id) => {
+      if (getCarById(id) && !selected.includes(id) && selected.length < MAX_CARS) selected.push(id);
+    });
+  }
+
+  render();
+</script>
+</body>
+</html>

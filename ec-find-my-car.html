@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Find My Car — The Enthusiasts Club</title>
+<link rel="stylesheet" href="ec-style.css" />
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="section">
+  <div class="container quiz-wrap">
+
+    <div class="eyebrow" style="text-align:center; display:block;">Free · 6 quick steps</div>
+    <h2 style="text-align:center; font-size:28px; margin-bottom:26px;">Find My Car</h2>
+
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:16%;"></div></div>
+
+    <!-- STEP 1: BUDGET -->
+    <div class="step active" data-step="0">
+      <div class="step-label">Step 1 of 6 — Budget</div>
+      <h3>What's your budget?</h3>
+      <div class="radio-grid" id="budgetOptions"></div>
+    </div>
+
+    <!-- STEP 2: USAGE -->
+    <div class="step" data-step="1">
+      <div class="step-label">Step 2 of 6 — Usage</div>
+      <h3>What kind of vehicle are you after?</h3>
+      <p class="hint" style="margin-bottom:10px;">Pick as many as you'd consider — leave blank to see everything.</p>
+      <div class="check-grid" id="bodyTypeOptions"></div>
+    </div>
+
+    <!-- STEP 3: POWERTRAIN -->
+    <div class="step" data-step="2">
+      <div class="step-label">Step 3 of 6 — Powertrain</div>
+      <h3>Gas, hybrid, or electric?</h3>
+      <div class="radio-grid" id="powertrainOptions"></div>
+    </div>
+
+    <!-- STEP 4: PRIORITIES -->
+    <div class="step" data-step="3">
+      <div class="step-label">Step 4 of 6 — Priorities</div>
+      <h3>Rank what matters most to you</h3>
+      <p class="hint" style="margin-bottom:10px;">Use the arrows to reorder — top of the list matters most.</p>
+      <ul class="priority-list" id="priorityList"></ul>
+    </div>
+
+    <!-- STEP 5: DEALBREAKERS -->
+    <div class="step" data-step="4">
+      <div class="step-label">Step 5 of 6 — Deal-breakers</div>
+      <h3>Any must-haves? (optional)</h3>
+      <div class="check-grid" id="dealbreakerOptions"></div>
+    </div>
+
+    <!-- STEP 6: RESULTS -->
+    <div class="step" data-step="5">
+      <div class="step-label">Step 6 of 6 — Your shortlist</div>
+      <h3 id="resultsHeading">Your ranked shortlist</h3>
+      <p class="hint" id="resultsHint" style="margin-bottom:18px;"></p>
+      <div id="resultsWrap"></div>
+      <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-outline" onclick="goToStep(0)">↺ Adjust my priorities</button>
+        <button class="btn btn-gold" id="compareShortlistBtn">Compare selected &rarr;</button>
+      </div>
+    </div>
+
+    <div class="quiz-nav" id="quizNav">
+      <button class="btn btn-outline" id="backBtn" onclick="prevStep()">Back</button>
+      <button class="btn btn-navy" id="nextBtn" onclick="nextStep()">Continue</button>
+    </div>
+
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<script src="ec-data.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+  renderChrome("find");
+
+  const TOTAL_STEPS = 6;
+  let currentStep = 0;
+
+  const BUDGETS = [
+    { key: "25", label: "Under $25,000", max: 25000 },
+    { key: "35", label: "$25,000 – $35,000", max: 35000 },
+    { key: "45", label: "$35,000 – $45,000", max: 45000 },
+    { key: "999", label: "$45,000+", max: 999000 },
+  ];
+  const BODY_TYPES = ["Sedan", "SUV", "Hatchback", "Truck"];
+  const POWERTRAINS = [
+    { key: "Any", label: "Show me everything" },
+    { key: "Gas", label: "Gas" },
+    { key: "Hybrid", label: "Hybrid" },
+    { key: "EV", label: "Electric" },
+  ];
+  const DEALBREAKERS = [
+    { key: "awd", label: "Must have AWD" },
+    { key: "safety5", label: "Must have 5-star safety rating" },
+    { key: "seats5", label: "Must seat 5 or more" },
+  ];
+  const PRIORITY_DEFS = [
+    { key: "runningCost", label: "Low running cost" },
+    { key: "safety", label: "Safety" },
+    { key: "reliability", label: "Reliability" },
+    { key: "performance", label: "Performance" },
+    { key: "technology", label: "Technology" },
+    { key: "space", label: "Cargo & passenger space" },
+  ];
+
+  let state = {
+    budgetKey: "35",
+    bodyTypes: new Set(),
+    powertrain: "Any",
+    priorityOrder: [...PRIORITY_DEFS],
+    dealbreakers: new Set(),
+  };
+
+  /* ---------- STEP 1: BUDGET ---------- */
+  function renderBudget() {
+    const wrap = document.getElementById("budgetOptions");
+    wrap.innerHTML = BUDGETS.map((b) => `
+      <label class="opt-card ${state.budgetKey === b.key ? "selected" : ""}" data-key="${b.key}">
+        <input type="radio" name="budget" value="${b.key}" ${state.budgetKey === b.key ? "checked" : ""}/>
+        ${b.label}
+      </label>
+    `).join("");
+    wrap.querySelectorAll(".opt-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        state.budgetKey = card.dataset.key;
+        renderBudget();
+      });
+    });
+  }
+
+  /* ---------- STEP 2: BODY TYPE ---------- */
+  function renderBodyTypes() {
+    const wrap = document.getElementById("bodyTypeOptions");
+    wrap.innerHTML = BODY_TYPES.map((t) => `
+      <label class="opt-card ${state.bodyTypes.has(t) ? "selected" : ""}" data-key="${t}">
+        <input type="checkbox" ${state.bodyTypes.has(t) ? "checked" : ""}/>
+        ${t}
+      </label>
+    `).join("");
+    wrap.querySelectorAll(".opt-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const t = card.dataset.key;
+        state.bodyTypes.has(t) ? state.bodyTypes.delete(t) : state.bodyTypes.add(t);
+        renderBodyTypes();
+      });
+    });
+  }
+
+  /* ---------- STEP 3: POWERTRAIN ---------- */
+  function renderPowertrain() {
+    const wrap = document.getElementById("powertrainOptions");
+    wrap.innerHTML = POWERTRAINS.map((p) => `
+      <label class="opt-card ${state.powertrain === p.key ? "selected" : ""}" data-key="${p.key}">
+        <input type="radio" name="powertrain" value="${p.key}" ${state.powertrain === p.key ? "checked" : ""}/>
+        ${p.label}
+      </label>
+    `).join("");
+    wrap.querySelectorAll(".opt-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        state.powertrain = card.dataset.key;
+        renderPowertrain();
+      });
+    });
+  }
+
+  /* ---------- STEP 4: PRIORITIES ---------- */
+  function renderPriorities() {
+    const list = document.getElementById("priorityList");
+    list.innerHTML = state.priorityOrder.map((p, i) => `
+      <li>
+        <span>${i + 1}. ${p.label}</span>
+        <span class="rank-btns">
+          <button data-dir="-1" data-idx="${i}" ${i === 0 ? "disabled" : ""}>↑</button>
+          <button data-dir="1" data-idx="${i}" ${i === state.priorityOrder.length - 1 ? "disabled" : ""}>↓</button>
+        </span>
+      </li>
+    `).join("");
+    list.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        const dir = parseInt(btn.dataset.dir, 10);
+        const swapIdx = idx + dir;
+        [state.priorityOrder[idx], state.priorityOrder[swapIdx]] = [state.priorityOrder[swapIdx], state.priorityOrder[idx]];
+        renderPriorities();
+      });
+    });
+  }
+
+  /* ---------- STEP 5: DEALBREAKERS ---------- */
+  function renderDealbreakers() {
+    const wrap = document.getElementById("dealbreakerOptions");
+    wrap.innerHTML = DEALBREAKERS.map((d) => `
+      <label class="opt-card ${state.dealbreakers.has(d.key) ? "selected" : ""}" data-key="${d.key}">
+        <input type="checkbox" ${state.dealbreakers.has(d.key) ? "checked" : ""}/>
+        ${d.label}
+      </label>
+    `).join("");
+    wrap.querySelectorAll(".opt-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const k = card.dataset.key;
+        state.dealbreakers.has(k) ? state.dealbreakers.delete(k) : state.dealbreakers.add(k);
+        renderDealbreakers();
+      });
+    });
+  }
+
+  /* ---------- SCORING ---------- */
+  function normalize(values, higherIsBetter) {
+    const min = Math.min(...values), max = Math.max(...values);
+    if (max === min) return values.map(() => 1);
+    return values.map((v) => {
+      const n = (v - min) / (max - min);
+      return higherIsBetter ? n : 1 - n;
+    });
+  }
+
+  let shortlist = [];
+
+  function runQuiz() {
+    const budget = BUDGETS.find((b) => b.key === state.budgetKey);
+    let candidates = CARS.filter((c) => c.price <= budget.max);
+
+    if (state.bodyTypes.size > 0) candidates = candidates.filter((c) => state.bodyTypes.has(c.bodyType));
+    if (state.powertrain !== "Any") candidates = candidates.filter((c) => c.powertrain === state.powertrain);
+    if (state.dealbreakers.has("awd")) candidates = candidates.filter((c) => c.awd);
+    if (state.dealbreakers.has("safety5")) candidates = candidates.filter((c) => c.safetyRating === 5);
+    if (state.dealbreakers.has("seats5")) candidates = candidates.filter((c) => c.seats >= 5);
+
+    const resultsHint = document.getElementById("resultsHint");
+    const wrap = document.getElementById("resultsWrap");
+
+    if (candidates.length === 0) {
+      resultsHint.textContent = "No cars match every filter you picked. Try loosening a deal-breaker or widening your budget.";
+      wrap.innerHTML = "";
+      shortlist = [];
+      return;
+    }
+
+    const metricRaw = {
+      runningCost: candidates.map((c) => c.price + c.annualMaintenance * 20),
+      safety: candidates.map((c) => c.safetyRating),
+      reliability: candidates.map((c) => c.reliabilityScore),
+      performance: candidates.map((c) => -c.zeroToSixty),
+      technology: candidates.map((c) => c.techScore),
+      space: candidates.map((c) => c.cargoCuFt + c.seats * 8),
+    };
+    const higherBetter = { runningCost: false, safety: true, reliability: true, performance: true, technology: true, space: true };
+
+    const normScores = {};
+    Object.keys(metricRaw).forEach((key) => {
+      normScores[key] = normalize(metricRaw[key], higherBetter[key]);
+    });
+
+    const n = state.priorityOrder.length;
+    const weights = {};
+    state.priorityOrder.forEach((p, i) => { weights[p.key] = n - i; });
+    const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+
+    const scored = candidates.map((c, i) => {
+      let sum = 0;
+      Object.keys(weights).forEach((key) => { sum += weights[key] * normScores[key][i]; });
+      const fitScore = Math.round((sum / totalWeight) * 100);
+
+      const top = state.priorityOrder[0], second = state.priorityOrder[1];
+      let why;
+      if (normScores[top.key][i] >= 0.75) why = `Excels at your #1 priority — ${top.label}.`;
+      else if (second && normScores[second.key][i] >= 0.75) why = `Strong on your #2 priority — ${second.label}.`;
+      else why = `Solid overall balance across your selected priorities.`;
+
+      return { car: c, fitScore, why };
+    }).sort((a, b) => b.fitScore - a.fitScore).slice(0, 6);
+
+    shortlist = scored.map((s) => s.car.id);
+    resultsHint.textContent = `${candidates.length} car${candidates.length === 1 ? "" : "s"} matched your filters. Ranked by fit to your priorities:`;
+
+    wrap.innerHTML = scored.map((s) => `
+      <div class="result-card">
+        <div class="fit-badge">${s.fitScore}%</div>
+        <div style="flex:1;">
+          <h3 style="margin-bottom:2px;">${s.car.brand} ${s.car.model}</h3>
+          <div class="why">${s.why}</div>
+          <div class="specs">
+            <span>${formatPrice(s.car.price)}</span>
+            <span>${s.car.powertrain}</span>
+            <span>${s.car.bodyType}</span>
+            <span>${s.car.rangeMiles ? s.car.rangeMiles + " mi range" : (s.car.mpgCity ? s.car.mpgCity + "/" + s.car.mpgHwy + " mpg" : "")}</span>
+            <span>${s.car.safetyRating}★ safety</span>
+          </div>
+          <div style="margin-top:10px;">
+            <a href="ec-compare.html?add=${s.car.id}" class="btn btn-outline" style="padding:8px 14px; font-size:12.5px;">Compare this car &rarr;</a>
+          </div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("compareShortlistBtn").addEventListener("click", () => {
+    if (shortlist.length === 0) return;
+    location.href = "ec-compare.html?addAll=" + shortlist.slice(0, 4).join(",");
+  });
+
+  /* ---------- STEP NAV ---------- */
+  function goToStep(i) {
+    currentStep = i;
+    document.querySelectorAll(".step").forEach((s) => s.classList.toggle("active", parseInt(s.dataset.step, 10) === i));
+    document.getElementById("progressFill").style.width = ((i + 1) / TOTAL_STEPS) * 100 + "%";
+    document.getElementById("backBtn").style.visibility = i === 0 ? "hidden" : "visible";
+    const nextBtn = document.getElementById("nextBtn");
+    const quizNav = document.getElementById("quizNav");
+    if (i === TOTAL_STEPS - 1) {
+      quizNav.style.display = "none";
+      runQuiz();
+    } else {
+      quizNav.style.display = "flex";
+      nextBtn.textContent = i === TOTAL_STEPS - 2 ? "See my results" : "Continue";
+    }
+  }
+  function nextStep() { if (currentStep < TOTAL_STEPS - 1) goToStep(currentStep + 1); }
+  function prevStep() { if (currentStep > 0) goToStep(currentStep - 1); }
+
+  renderBudget();
+  renderBodyTypes();
+  renderPowertrain();
+  renderPriorities();
+  renderDealbreakers();
+  goToStep(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Buyer Resources — The Enthusiasts Club</title>
+<link rel="stylesheet" href="ec-style.css" />
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <div class="eyebrow">Free guidance</div>
+    <h2 style="font-size:30px;">Buyer Resources</h2>
+    <p style="color:var(--grey); max-width:660px;">Once you know which car you want, here's what else you need to actually buy it — financing, insurance, warranty, trade-in, and the add-ons dealers love to upsell. All free, all independent.</p>
+  </div>
+</section>
+
+<!-- CALCULATORS -->
+<section class="section">
+  <div class="container two-col">
+
+    <div class="tool-box">
+      <h3>Loan Payment Calculator</h3>
+      <p style="color:var(--grey); font-size:13.5px;">Estimate your monthly payment before you talk to a dealer's finance office.</p>
+      <div class="field"><label>Vehicle price</label><input type="number" id="loanPrice" value="32000" /></div>
+      <div class="field"><label>Down payment</label><input type="number" id="loanDown" value="4000" /></div>
+      <div class="two-col">
+        <div class="field"><label>APR (%)</label><input type="number" id="loanApr" value="6.5" step="0.1" /></div>
+        <div class="field"><label>Loan term (months)</label><input type="number" id="loanTerm" value="60" /></div>
+      </div>
+      <button class="btn btn-navy btn-block" onclick="calcLoan()">Calculate monthly payment</button>
+      <div class="tool-result" id="loanResult" style="display:none;"></div>
+      <div class="disclosure">Estimate only — your actual rate depends on credit, lender, and location. Always compare a dealership's offer against your own bank or credit union pre-approval.</div>
+    </div>
+
+    <div class="tool-box">
+      <h3>Rough Insurance Estimator</h3>
+      <p style="color:var(--grey); font-size:13.5px;">A directional monthly range, not a quote — the same car can vary a lot by insurer.</p>
+      <div class="field"><label>Vehicle price</label><input type="number" id="insPrice" value="32000" /></div>
+      <div class="field">
+        <label>Powertrain / type</label>
+        <select id="insType">
+          <option value="1">Standard gas car</option>
+          <option value="1.15">Hybrid</option>
+          <option value="1.25">EV</option>
+          <option value="1.6">Luxury / performance</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Driver age bracket</label>
+        <select id="insAge">
+          <option value="1.5">Under 25</option>
+          <option value="1.1">25–34</option>
+          <option value="1" selected>35–64</option>
+          <option value="1.05">65+</option>
+        </select>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="insSafety" checked style="width:auto; margin-right:6px;"/> Car has automatic emergency braking + lane-keep assist</label>
+      </div>
+      <button class="btn btn-navy btn-block" onclick="calcInsurance()">Estimate monthly premium</button>
+      <div class="tool-result" id="insResult" style="display:none;"></div>
+      <div class="disclosure">Rough directional estimate for planning purposes only. Get real quotes from at least two insurers before buying.</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- GUIDES -->
+<section class="section" style="background:#fff; border-top:1px solid var(--border);">
+  <div class="container">
+    <div class="section-head"><div><div class="eyebrow">Guides</div><h2>What you need to know before you sign</h2></div></div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="feature-icon">🏦</div>
+        <h3>Financing</h3>
+        <p>Dealership financing is convenient but rarely the cheapest option. Get pre-approved by your own bank or credit union first, so you have a real number to compare the dealer's offer against. Look past the monthly payment to the total loan cost — APR, term length, and any early-payoff penalty all matter.</p>
+      </div>
+      <div class="card">
+        <div class="feature-icon">🛡️</div>
+        <h3>Insurance</h3>
+        <p>Get an insurance estimate before you buy, not after. Sticker price, repair cost, top speed, and standard safety features all move your premium — sometimes more than the car's price tag does. Two cars at the same MSRP can cost very different amounts to insure.</p>
+      </div>
+      <div class="card">
+        <div class="feature-icon">📄</div>
+        <h3>Warranty vs. Extended Service Contract</h3>
+        <p>A factory warranty is included; an "extended warranty" (really an extended service contract) is a separate, optional, paid product. Before buying one, get clear on what's covered, for how long, whether it transfers if you sell the car, and your per-visit deductible.</p>
+      </div>
+      <div class="card">
+        <div class="feature-icon">🔄</div>
+        <h3>Trade-In</h3>
+        <p>Know your current car's trade-in value before you negotiate the new purchase — dealers may quietly fold a low trade-in offer into an otherwise good deal on the new car. Get an independent valuation first and negotiate the two numbers separately.</p>
+      </div>
+      <div class="card">
+        <div class="feature-icon">🔌</div>
+        <h3>EV Charging &amp; Incentives</h3>
+        <p>Before buying an EV, map out home and workplace charging realistically, and check current federal and state incentives for your ZIP code — they can meaningfully change the effective price versus a comparable gas car.</p>
+      </div>
+      <div class="card">
+        <div class="feature-icon">⚠️</div>
+        <h3>Dealer Add-On Watch List</h3>
+        <p>Gap insurance, VIN etching, rustproofing, and paint protection are commonly pitched late in the process and can add thousands to a deal. None are automatically bad — but price gap insurance through your own insurer too, and ask for every add-on itemized and priced separately before you sign.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<script src="ec-data.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+  renderChrome("resources");
+
+  function calcLoan() {
+    const price = parseFloat(document.getElementById("loanPrice").value) || 0;
+    const down = parseFloat(document.getElementById("loanDown").value) || 0;
+    const apr = parseFloat(document.getElementById("loanApr").value) || 0;
+    const term = parseInt(document.getElementById("loanTerm").value, 10) || 1;
+
+    const principal = Math.max(price - down, 0);
+    const r = (apr / 100) / 12;
+    let monthly;
+    if (r === 0) monthly = principal / term;
+    else monthly = principal * r * Math.pow(1 + r, term) / (Math.pow(1 + r, term) - 1);
+
+    const totalPaid = monthly * term;
+    const totalInterest = totalPaid - principal;
+
+    const out = document.getElementById("loanResult");
+    out.style.display = "block";
+    out.innerHTML = `
+      <div class="big">$${monthly.toFixed(2)} / month</div>
+      <div>Loan amount: $${principal.toLocaleString()}</div>
+      <div>Total interest over ${term} months: $${totalInterest.toFixed(2)}</div>
+      <div>Total paid (principal + interest): $${totalPaid.toFixed(2)}</div>
+    `;
+  }
+
+  function calcInsurance() {
+    const price = parseFloat(document.getElementById("insPrice").value) || 0;
+    const typeMult = parseFloat(document.getElementById("insType").value);
+    const ageMult = parseFloat(document.getElementById("insAge").value);
+    const safety = document.getElementById("insSafety").checked;
+
+    // Rough illustrative heuristic only — not an actuarial model.
+    let base = 60 + (price / 1000) * 1.1;
+    base *= typeMult * ageMult;
+    if (safety) base *= 0.92;
+
+    const low = Math.round(base * 0.85);
+    const high = Math.round(base * 1.2);
+
+    const out = document.getElementById("insResult");
+    out.style.display = "block";
+    out.innerHTML = `
+      <div class="big">$${low} – $${high} / month</div>
+      <div>Rough directional range based on price, type, driver age bracket, and safety tech.</div>
+    `;
+  }
+</script>
+</body>
+</html>

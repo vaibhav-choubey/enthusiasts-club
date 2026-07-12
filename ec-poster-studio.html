@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Poster Studio — The Enthusiasts Club</title>
+<link rel="stylesheet" href="ec-style.css" />
+<!--
+  Poster Studio — core offering.
+  Free tier: fully client-side. Upload a photo of your car/bike, pick a
+  template, edit title/subtitle/accent color, download a PNG via Canvas.
+  Premium tier: pre-made poster designs, rendered the same way (procedurally,
+  via Canvas, using a stylized silhouette instead of a licensed photo).
+  The "Unlock" flow is a DEMO checkout only — no real payment fields are
+  collected. For production, replace confirmDemoPurchase() with a real
+  payment flow (e.g. Stripe Checkout), verify the charge server-side, then
+  unlock the high-res download via a signed URL rather than client-side.
+-->
+<style>
+  .ps-controls .field { margin-bottom: 20px; }
+  .ps-controls h4 {
+    margin: 0 0 6px;
+    font-size: 13.5px;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .dropzone {
+    border: 2px dashed #c7cfe0;
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--grey);
+    cursor: pointer;
+    background: #fafbfc;
+  }
+  .dropzone.drag { border-color: var(--gold); color: var(--navy); background: #fff8ec; }
+  .dropzone input { display: none; }
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .tpl-card {
+    border: 2px solid #e2e6ee;
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--grey);
+    cursor: pointer;
+    background: #fff;
+  }
+  .tpl-card.selected { border-color: var(--gold); color: var(--navy); background: #fff8ec; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch2 {
+    width: 28px; height: 28px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+  }
+  .swatch2.selected { border-color: var(--navy); }
+  .orient-toggle { display: flex; gap: 8px; }
+  .orient-toggle button {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--grey);
+  }
+  .orient-toggle button.selected { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .ps-preview { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .canvas-wrap {
+    background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  #freeCanvas { max-width: 100%; height: auto; display: block; border-radius: 4px; }
+
+  .poster-card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fff; }
+  .poster-card canvas { width: 100%; display: block; background: #000; }
+  .poster-meta { padding: 12px 14px; }
+  .poster-meta .name { font-weight: 700; font-size: 14px; color: var(--navy); }
+  .poster-meta .price { font-size: 13px; color: var(--gold); font-weight: 700; margin: 4px 0 10px; }
+  .poster-meta button {
+    width: 100%; padding: 9px; border-radius: 7px; border: none;
+    font-weight: 700; font-size: 13px; cursor: pointer; background: var(--navy); color: #fff;
+  }
+  .poster-meta button.owned { background: var(--green); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15,20,30,0.55);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 26px; max-width: 380px; width: 100%; }
+  .modal h4 { margin: 0 0 6px; color: var(--navy); }
+  .modal .demo-flag {
+    display: inline-block; font-size: 11px; font-weight: 700; color: #8a5b00;
+    background: #fff3d6; padding: 3px 8px; border-radius: 6px; margin-bottom: 10px;
+  }
+  .modal p { font-size: 13px; color: var(--grey); line-height: 1.5; }
+  .modal .row { display: flex; gap: 10px; margin-top: 18px; }
+  .modal .row button { flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; }
+  .modal .cancel { background: #eee; color: #333; }
+  .modal .confirm { background: var(--gold); color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <div class="eyebrow">Core offering · free</div>
+    <h2 style="font-size:30px;">Poster Studio</h2>
+    <p style="color:var(--grey); max-width:660px;">Turn a photo of your own car or bike into wall art. Pick a template, customize it, and download it free — or unlock a premium pre-made design.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div class="container">
+
+    <nav class="rw-nav" style="margin-bottom:20px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px; display:inline-flex;">
+      <a href="#" id="tabBtnFree" class="active" onclick="switchTab('free'); return false;">Create Your Own — Free</a>
+      <a href="#" id="tabBtnPremium" onclick="switchTab('premium'); return false;">Premium Designs</a>
+    </nav>
+
+    <!-- ============ FREE GENERATOR PANEL ============ -->
+    <div id="panelFree">
+      <div class="two-col" style="grid-template-columns: 340px 1fr; align-items:start;">
+        <div class="ps-controls">
+
+          <div class="field">
+            <h4>1. Your Photo</h4>
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="photoInput" accept="image/*" />
+              <div id="dropzoneLabel">Click or drag a photo of your car/bike here<br/><span style="font-size:11px;">Stays in your browser — nothing is uploaded</span></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <h4>2. Template</h4>
+            <div class="template-grid" id="templateGrid"></div>
+          </div>
+
+          <div class="field">
+            <label>Title (e.g. car name)</label>
+            <input type="text" id="titleInput" value="MY MUSTANG GT" maxlength="28" />
+          </div>
+
+          <div class="field">
+            <label>Subtitle (owner, year, tagline)</label>
+            <input type="text" id="subtitleInput" value="Owned since 2021 · Est. Power" maxlength="42" />
+          </div>
+
+          <div class="field">
+            <label>Accent Color</label>
+            <div class="swatches" id="colorSwatches"></div>
+          </div>
+
+          <div class="field">
+            <label>Orientation</label>
+            <div class="orient-toggle">
+              <button id="orientPortrait" class="selected" onclick="setOrientation('portrait')">Portrait</button>
+              <button id="orientLandscape" onclick="setOrientation('landscape')">Landscape</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ps-preview">
+          <div class="canvas-wrap">
+            <canvas id="freeCanvas" width="900" height="1200"></canvas>
+          </div>
+          <button class="btn btn-gold" onclick="downloadFreePoster()">⬇ Download Free Poster (PNG)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PREMIUM GALLERY PANEL ============ -->
+    <div id="panelPremium" style="display:none;">
+      <p style="color:var(--grey); margin-bottom:18px;">Professionally styled poster designs, ready in seconds. Unlock any design for a one-time fee and download it in full resolution.</p>
+      <div class="card-grid" id="galleryGrid"></div>
+    </div>
+
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<!-- Demo checkout modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <span class="demo-flag">DEMO CHECKOUT — no real charge</span>
+    <h4 id="modalTitle">Unlock poster</h4>
+    <p>This prototype simulates a purchase so you can see the unlock-and-download flow. In production this button would open a real payment provider, and the high-resolution file would only unlock after the charge is confirmed server-side.</p>
+    <div class="row">
+      <button class="cancel" onclick="closeModal()">Cancel</button>
+      <button class="confirm" onclick="confirmDemoPurchase()">Confirm demo purchase</button>
+    </div>
+  </div>
+</div>
+
+<script src="ec-data.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+renderChrome("poster");
+
+/* ============================================================
+   CONSTANTS & STATE
+   ============================================================ */
+const NAVY = "#1B2A4A";
+const COLORS = ["#C08A2E", "#2E5AAC", "#B23A3A", "#1C7A3C", "#7A3AB2", "#111111"];
+const SIZES = { portrait: { w: 1200, h: 1600 }, landscape: { w: 1600, h: 1200 } };
+
+let state = { orientation: "portrait", template: "classic", accent: COLORS[0], uploadedImg: null };
+
+/* ---------- HELPERS ---------- */
+function roundRectPath(ctx, x, y, w, h, r) {
+  if (typeof r === "number") r = { tl: r, tr: r, br: r, bl: r };
+  ctx.beginPath();
+  ctx.moveTo(x + r.tl, y);
+  ctx.lineTo(x + w - r.tr, y);
+  ctx.arcTo(x + w, y, x + w, y + r.tr, r.tr);
+  ctx.lineTo(x + w, y + h - r.br);
+  ctx.arcTo(x + w, y + h, x + w - r.br, y + h, r.br);
+  ctx.lineTo(x + r.bl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r.bl, r.bl);
+  ctx.lineTo(x, y + r.tl);
+  ctx.arcTo(x, y, x + r.tl, y, r.tl);
+  ctx.closePath();
+}
+function drawImageCover(ctx, img, x, y, w, h, radius) {
+  ctx.save();
+  if (radius) { roundRectPath(ctx, x, y, w, h, radius); ctx.clip(); }
+  else { ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); }
+  const scale = Math.max(w / img.width, h / img.height);
+  const iw = img.width * scale, ih = img.height * scale;
+  const ix = x + (w - iw) / 2, iy = y + (h - ih) / 2;
+  ctx.drawImage(img, ix, iy, iw, ih);
+  ctx.restore();
+}
+function drawSilhouette(ctx, x, y, w, h, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.9;
+  const bw = w * 0.86, bh = h * 0.30;
+  const bx = (w - bw) / 2, by = h * 0.42;
+  roundRectPath(ctx, bx, by, bw, bh, bh * 0.35);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(bx + bw * 0.22, by);
+  ctx.quadraticCurveTo(bx + bw * 0.32, by - bh * 0.75, bx + bw * 0.46, by - bh * 0.78);
+  ctx.lineTo(bx + bw * 0.72, by - bh * 0.78);
+  ctx.quadraticCurveTo(bx + bw * 0.86, by - bh * 0.7, bx + bw * 0.9, by);
+  ctx.closePath();
+  ctx.fill();
+  const wheelR = bh * 0.55;
+  ctx.beginPath();
+  ctx.arc(bx + bw * 0.24, by + bh, wheelR, 0, Math.PI * 2);
+  ctx.arc(bx + bw * 0.78, by + bh, wheelR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+function hexToRgba(hex, a) {
+  const v = hex.replace("#", "");
+  const r = parseInt(v.substring(0, 2), 16), g = parseInt(v.substring(2, 4), 16), b = parseInt(v.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ---------- TEMPLATES ---------- */
+const TEMPLATES = {
+  classic: { label: "Classic Frame", draw(ctx, w, h, o) {
+    ctx.fillStyle = "#F7F3EA"; ctx.fillRect(0, 0, w, h);
+    const m = w * 0.045;
+    ctx.strokeStyle = o.accent; ctx.lineWidth = w * 0.006; ctx.strokeRect(m, m, w - 2 * m, h - 2 * m);
+    ctx.strokeStyle = "#00000022"; ctx.lineWidth = w * 0.002; ctx.strokeRect(m * 1.6, m * 1.6, w - 3.2 * m, h - 3.2 * m);
+    const photoX = m * 2.4, photoY = m * 2.4, photoW = w - photoX * 2, photoH = h * 0.58;
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.25)"; ctx.shadowBlur = w * 0.02;
+    if (o.img) drawImageCover(ctx, o.img, photoX, photoY, photoW, photoH, 18);
+    else { ctx.fillStyle = "#e4e1d6"; roundRectPath(ctx, photoX, photoY, photoW, photoH, 18); ctx.fill(); drawSilhouette(ctx, photoX, photoY, photoW, photoH, o.accent); }
+    ctx.restore();
+    const lineY = photoY + photoH + m * 0.9;
+    ctx.strokeStyle = o.accent; ctx.lineWidth = w * 0.004;
+    ctx.beginPath(); ctx.moveTo(photoX, lineY); ctx.lineTo(photoX + photoW, lineY); ctx.stroke();
+    ctx.textAlign = "center"; ctx.fillStyle = NAVY;
+    ctx.font = `700 ${w * 0.075}px Georgia, 'Times New Roman', serif`;
+    ctx.fillText(o.title.toUpperCase(), w / 2, lineY + h * 0.09);
+    ctx.fillStyle = "#6b6558"; ctx.font = `500 ${w * 0.03}px Georgia, serif`;
+    ctx.fillText(o.subtitle, w / 2, lineY + h * 0.13);
+    ctx.fillStyle = o.accent; ctx.font = `700 ${w * 0.018}px Arial`;
+    ctx.fillText("THE ENTHUSIASTS CLUB", w / 2, h - m * 1.6);
+  }},
+  neon: { label: "Neon Grid", draw(ctx, w, h, o) {
+    ctx.fillStyle = "#0B0E14"; ctx.fillRect(0, 0, w, h);
+    ctx.save(); ctx.strokeStyle = hexToRgba(o.accent, 0.35); ctx.lineWidth = 2;
+    const gridTop = h * 0.72, gridBottom = h;
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10, xTop = w * (0.3 + 0.4 * t), xBot = w * (-0.2 + 1.4 * t);
+      ctx.beginPath(); ctx.moveTo(xTop, gridTop); ctx.lineTo(xBot, gridBottom); ctx.stroke();
+    }
+    for (let j = 0; j <= 6; j++) {
+      const y = gridTop + (gridBottom - gridTop) * (j / 6) * (j / 6);
+      ctx.beginPath(); ctx.moveTo(w * 0.1, y); ctx.lineTo(w * 0.9, y); ctx.stroke();
+    }
+    ctx.restore();
+    const m = w * 0.08, photoX = m, photoY = h * 0.08, photoW = w - 2 * m, photoH = h * 0.5;
+    ctx.save(); ctx.shadowColor = o.accent; ctx.shadowBlur = w * 0.03;
+    ctx.strokeStyle = o.accent; ctx.lineWidth = w * 0.006;
+    roundRectPath(ctx, photoX, photoY, photoW, photoH, 6); ctx.stroke();
+    if (o.img) drawImageCover(ctx, o.img, photoX, photoY, photoW, photoH, 4);
+    else { ctx.fillStyle = "#161b26"; roundRectPath(ctx, photoX, photoY, photoW, photoH, 4); ctx.fill(); drawSilhouette(ctx, photoX, photoY, photoW, photoH, o.accent); }
+    ctx.restore();
+    ctx.textAlign = "center"; ctx.save(); ctx.shadowColor = o.accent; ctx.shadowBlur = w * 0.025;
+    ctx.fillStyle = "#ffffff"; ctx.font = `800 ${w * 0.09}px 'Arial Black', Arial, sans-serif`;
+    ctx.fillText(o.title.toUpperCase(), w / 2, photoY + photoH + h * 0.12); ctx.restore();
+    ctx.fillStyle = o.accent; ctx.font = `600 ${w * 0.028}px 'Courier New', monospace`;
+    ctx.fillText(o.subtitle.toUpperCase(), w / 2, photoY + photoH + h * 0.16);
+  }},
+  vintage: { label: "Vintage Plate", draw(ctx, w, h, o) {
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "#EDD9B4"); grad.addColorStop(1, "#D8BD8A");
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+    const m = w * 0.07, photoX = m, photoY = m, photoW = w - 2 * m, photoH = h * 0.55;
+    ctx.save();
+    if (o.img) { ctx.filter = "sepia(0.5) contrast(1.05)"; drawImageCover(ctx, o.img, photoX, photoY, photoW, photoH, 4); ctx.filter = "none"; }
+    else { ctx.fillStyle = "#c9b183"; ctx.fillRect(photoX, photoY, photoW, photoH); drawSilhouette(ctx, photoX, photoY, photoW, photoH, "#5c4322"); }
+    ctx.strokeStyle = "#5c4322"; ctx.lineWidth = w * 0.008; ctx.strokeRect(photoX, photoY, photoW, photoH);
+    ctx.restore();
+    const plateW = w * 0.72, plateH = h * 0.14, plateX = (w - plateW) / 2, plateY = photoY + photoH + h * 0.06;
+    ctx.fillStyle = "#F4E9D2"; roundRectPath(ctx, plateX, plateY, plateW, plateH, 10); ctx.fill();
+    ctx.strokeStyle = "#5c4322"; ctx.lineWidth = w * 0.005; roundRectPath(ctx, plateX, plateY, plateW, plateH, 10); ctx.stroke();
+    ctx.fillStyle = "#5c4322";
+    [[plateX + 18, plateY + 18], [plateX + plateW - 18, plateY + 18], [plateX + 18, plateY + plateH - 18], [plateX + plateW - 18, plateY + plateH - 18]].forEach(([bx, by]) => {
+      ctx.beginPath(); ctx.arc(bx, by, w * 0.006, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.textAlign = "center"; ctx.fillStyle = "#4a3418"; ctx.font = `700 ${w * 0.065}px Georgia, serif`;
+    ctx.fillText(o.title.toUpperCase(), w / 2, plateY + plateH * 0.62);
+    ctx.fillStyle = "#5c4322"; ctx.font = `italic 500 ${w * 0.028}px Georgia, serif`;
+    ctx.fillText(o.subtitle, w / 2, plateY + plateH + h * 0.05);
+  }},
+  minimal: { label: "Minimalist", draw(ctx, w, h, o) {
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, w, h);
+    const size = Math.min(w, h) * 0.62, photoX = w * 0.5 - size / 2, photoY = h * 0.08;
+    ctx.save(); ctx.strokeStyle = "#e5e5e5"; ctx.lineWidth = 2; ctx.strokeRect(photoX, photoY, size, size);
+    if (o.img) drawImageCover(ctx, o.img, photoX, photoY, size, size, 0);
+    else { ctx.fillStyle = "#f2f2f2"; ctx.fillRect(photoX, photoY, size, size); drawSilhouette(ctx, photoX, photoY, size, size, o.accent); }
+    ctx.restore();
+    const textY = photoY + size + h * 0.11;
+    ctx.strokeStyle = o.accent; ctx.lineWidth = w * 0.006;
+    ctx.beginPath(); ctx.moveTo(w * 0.08, textY - h * 0.045); ctx.lineTo(w * 0.08 + w * 0.12, textY - h * 0.045); ctx.stroke();
+    ctx.textAlign = "left"; ctx.fillStyle = "#111"; ctx.font = `200 ${w * 0.09}px Helvetica, Arial, sans-serif`;
+    ctx.fillText(o.title, w * 0.08, textY);
+    ctx.fillStyle = "#8a8a8a"; ctx.font = `500 ${w * 0.024}px Helvetica, Arial, sans-serif`;
+    ctx.fillText(o.subtitle.toUpperCase(), w * 0.08, textY + h * 0.045);
+  }},
+  racing: { label: "Racing Stripe", draw(ctx, w, h, o) {
+    ctx.fillStyle = "#17181C"; ctx.fillRect(0, 0, w, h);
+    const photoY = h * 0.06, photoH = h * 0.62;
+    if (o.img) drawImageCover(ctx, o.img, 0, photoY, w, photoH, 0);
+    else { ctx.fillStyle = "#222327"; ctx.fillRect(0, photoY, w, photoH); drawSilhouette(ctx, 0, photoY, w, photoH, o.accent); }
+    ctx.save(); ctx.translate(0, photoY + photoH - h * 0.06);
+    ctx.beginPath(); ctx.moveTo(0, h * 0.02); ctx.lineTo(w, -h * 0.02); ctx.lineTo(w, h * 0.16); ctx.lineTo(0, h * 0.2); ctx.closePath();
+    ctx.fillStyle = o.accent; ctx.fill(); ctx.restore();
+    ctx.textAlign = "center"; ctx.fillStyle = "#ffffff"; ctx.font = `italic 800 ${w * 0.085}px Arial, sans-serif`;
+    ctx.fillText(o.title.toUpperCase(), w / 2, photoY + photoH + h * 0.055);
+    const chkY = photoY + photoH + h * 0.09, chkH = h * 0.03, n = 20;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 === 0 ? "#fff" : "#111"; ctx.fillRect((w / n) * i, chkY, w / n, chkH); }
+    ctx.fillStyle = "#c9ccd4"; ctx.font = `600 ${w * 0.026}px Arial, sans-serif`;
+    ctx.fillText(o.subtitle.toUpperCase(), w / 2, chkY + chkH + h * 0.045);
+  }},
+};
+
+/* ---------- FREE GENERATOR WIRING ---------- */
+function currentCanvasSize() { return SIZES[state.orientation]; }
+
+function redrawFree() {
+  const canvas = document.getElementById("freeCanvas");
+  const { w, h } = currentCanvasSize();
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  TEMPLATES[state.template].draw(ctx, w, h, {
+    img: state.uploadedImg,
+    title: document.getElementById("titleInput").value || "YOUR CAR NAME",
+    subtitle: document.getElementById("subtitleInput").value || "",
+    accent: state.accent,
+  });
+}
+
+function setOrientation(mode) {
+  state.orientation = mode;
+  document.getElementById("orientPortrait").classList.toggle("selected", mode === "portrait");
+  document.getElementById("orientLandscape").classList.toggle("selected", mode === "landscape");
+  redrawFree();
+}
+
+function buildTemplateGrid() {
+  const grid = document.getElementById("templateGrid");
+  grid.innerHTML = "";
+  Object.keys(TEMPLATES).forEach((key) => {
+    const card = document.createElement("div");
+    card.className = "tpl-card" + (key === state.template ? " selected" : "");
+    card.textContent = TEMPLATES[key].label;
+    card.onclick = () => {
+      state.template = key;
+      document.querySelectorAll(".tpl-card").forEach((c) => c.classList.remove("selected"));
+      card.classList.add("selected");
+      redrawFree();
+    };
+    grid.appendChild(card);
+  });
+}
+
+function buildColorSwatches() {
+  const wrap = document.getElementById("colorSwatches");
+  wrap.innerHTML = "";
+  COLORS.forEach((c) => {
+    const sw = document.createElement("div");
+    sw.className = "swatch2" + (c === state.accent ? " selected" : "");
+    sw.style.background = c;
+    sw.onclick = () => {
+      state.accent = c;
+      document.querySelectorAll(".swatch2").forEach((s) => s.classList.remove("selected"));
+      sw.classList.add("selected");
+      redrawFree();
+    };
+    wrap.appendChild(sw);
+  });
+}
+
+function setupUpload() {
+  const dropzone = document.getElementById("dropzone");
+  const input = document.getElementById("photoInput");
+  dropzone.addEventListener("click", () => input.click());
+  input.addEventListener("change", (e) => handleFiles(e.target.files));
+  ["dragenter", "dragover"].forEach((evt) => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((evt) => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); }));
+  dropzone.addEventListener("drop", (e) => handleFiles(e.dataTransfer.files));
+}
+
+function handleFiles(files) {
+  if (!files || !files[0]) return;
+  const file = files[0];
+  if (!file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      state.uploadedImg = img;
+      document.getElementById("dropzoneLabel").innerHTML = "✓ " + file.name + "<br/><span style='font-size:11px;'>Click to replace</span>";
+      redrawFree();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function downloadFreePoster() {
+  const canvas = document.getElementById("freeCanvas");
+  const link = document.createElement("a");
+  const title = (document.getElementById("titleInput").value || "poster").trim().replace(/\s+/g, "-").toLowerCase();
+  link.download = `enthusiasts-club-${title}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+/* ---------- PREMIUM GALLERY ---------- */
+const PREMIUM_POSTERS = [
+  { id: "p1", name: "Midnight GT",      template: "neon",    accent: "#2E5AAC", price: 4.99, title: "MIDNIGHT GT",      subtitle: "Limited Edition Series" },
+  { id: "p2", name: "Retro Racer",      template: "vintage", accent: "#B23A3A", price: 3.99, title: "RETRO RACER",      subtitle: "Heritage Collection" },
+  { id: "p3", name: "Pure Form",        template: "minimal", accent: "#111111", price: 2.99, title: "Pure Form",        subtitle: "Studio Series" },
+  { id: "p4", name: "Track Day",        template: "racing",  accent: "#C08A2E", price: 5.99, title: "TRACK DAY",        subtitle: "Motorsport Collection" },
+  { id: "p5", name: "Heritage Edition", template: "classic", accent: "#7A3AB2", price: 4.49, title: "HERITAGE EDITION", subtitle: "Est. Craftsmanship" },
+  { id: "p6", name: "Chrome Dreams",    template: "neon",    accent: "#1C7A3C", price: 5.49, title: "CHROME DREAMS",    subtitle: "Future Classic Series" },
+];
+
+let unlocked = new Set();
+let pendingUnlock = null;
+
+function buildGallery() {
+  const grid = document.getElementById("galleryGrid");
+  grid.innerHTML = "";
+  PREMIUM_POSTERS.forEach((p) => {
+    const card = document.createElement("div");
+    card.className = "poster-card";
+    const canvas = document.createElement("canvas");
+    canvas.width = 450; canvas.height = 600;
+    card.appendChild(canvas);
+    const meta = document.createElement("div");
+    meta.className = "poster-meta";
+    meta.innerHTML = `<div class="name">${p.name}</div><div class="price">$${p.price.toFixed(2)} one-time</div>`;
+    const btn = document.createElement("button");
+    updatePremiumButton(btn, p);
+    btn.onclick = () => { unlocked.has(p.id) ? downloadPremiumPoster(p) : openModal(p); };
+    meta.appendChild(btn);
+    card.appendChild(meta);
+    grid.appendChild(card);
+    const ctx = canvas.getContext("2d");
+    TEMPLATES[p.template].draw(ctx, canvas.width, canvas.height, { img: null, title: p.title, subtitle: p.subtitle, accent: p.accent });
+  });
+}
+function updatePremiumButton(btn, p) {
+  if (unlocked.has(p.id)) { btn.textContent = "⬇ Download Poster"; btn.classList.add("owned"); }
+  else { btn.textContent = `Unlock — $${p.price.toFixed(2)}`; btn.classList.remove("owned"); }
+}
+function openModal(p) {
+  pendingUnlock = p;
+  document.getElementById("modalTitle").textContent = `Unlock "${p.name}" — $${p.price.toFixed(2)}`;
+  document.getElementById("modalBackdrop").classList.add("open");
+}
+function closeModal() { pendingUnlock = null; document.getElementById("modalBackdrop").classList.remove("open"); }
+function confirmDemoPurchase() {
+  if (!pendingUnlock) return;
+  unlocked.add(pendingUnlock.id);
+  closeModal();
+  buildGallery();
+}
+function downloadPremiumPoster(p) {
+  const full = document.createElement("canvas");
+  full.width = 1200; full.height = 1600;
+  const ctx = full.getContext("2d");
+  TEMPLATES[p.template].draw(ctx, full.width, full.height, { img: null, title: p.title, subtitle: p.subtitle, accent: p.accent });
+  const link = document.createElement("a");
+  link.download = `enthusiasts-club-premium-${p.id}.png`;
+  link.href = full.toDataURL("image/png");
+  link.click();
+}
+
+/* ---------- TABS & INIT ---------- */
+function switchTab(tab) {
+  document.getElementById("panelFree").style.display = tab === "free" ? "block" : "none";
+  document.getElementById("panelPremium").style.display = tab === "premium" ? "block" : "none";
+  document.getElementById("tabBtnFree").classList.toggle("active", tab === "free");
+  document.getElementById("tabBtnPremium").classList.toggle("active", tab === "premium");
+}
+
+function init() {
+  buildTemplateGrid();
+  buildColorSwatches();
+  setupUpload();
+  document.getElementById("titleInput").addEventListener("input", redrawFree);
+  document.getElementById("subtitleInput").addEventListener("input", redrawFree);
+  redrawFree();
+  buildGallery();
+}
+init();
+</script>
+</body>
+</html>

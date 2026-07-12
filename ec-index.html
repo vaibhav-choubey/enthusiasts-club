@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Enthusiasts Club — Free Car & Bike Consultancy</title>
+<link rel="stylesheet" href="ec-style.css" />
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="hero">
+  <div class="container">
+    <div class="free-pill">Created by enthusiasts, for enthusiasts &mdash; 100% free</div>
+    <h1>Find the car or bike that's actually right for you.</h1>
+    <p class="lead">News, honest comparisons, a priority-based car finder, and a free poster studio for the ride you already own — all in one place, all free. No account required, no sales pitch.</p>
+    <div class="cta-row">
+      <a href="ec-find-my-car.html" class="btn btn-gold">Find My Best-Value Car</a>
+      <a href="ec-compare.html" class="btn btn-outline-light">Compare Cars</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Everything, free</div>
+        <h2>What you can do here</h2>
+      </div>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <div class="feature-icon">📰</div>
+        <h3>News &amp; Articles</h3>
+        <p>Plain-language coverage of EVs, hybrids, buying guides, and industry trends — no jargon, no dealer spin.</p>
+        <a href="ec-news.html">Read the latest &rarr;</a>
+      </div>
+      <div class="card">
+        <div class="feature-icon">⚖️</div>
+        <h3>Compare Cars</h3>
+        <p>Put up to 4 cars side by side across pricing, performance, safety, tech, and true ownership cost.</p>
+        <a href="ec-compare.html">Start comparing &rarr;</a>
+      </div>
+      <div class="card">
+        <div class="feature-icon">🎯</div>
+        <h3>Find My Car</h3>
+        <p>Tell us your budget and priorities. We rank real cars by fit — not by who's paying for placement.</p>
+        <a href="ec-find-my-car.html">Take the quiz &rarr;</a>
+      </div>
+      <div class="card relative">
+        <span class="value-tag">Core offering</span>
+        <div class="feature-icon">🖼️</div>
+        <h3>Poster Studio</h3>
+        <p>Turn a photo of your own car or bike into a downloadable poster, free. Or pick a premium design from the gallery.</p>
+        <a href="ec-poster-studio.html">Design a poster &rarr;</a>
+      </div>
+      <div class="card">
+        <div class="feature-icon">💳</div>
+        <h3>Buyer Resources</h3>
+        <p>Straight answers on financing, insurance, warranties, trade-ins, and the add-ons that are (and aren't) worth it.</p>
+        <a href="ec-resources.html">Get ready to buy &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:#fff; border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">This week</div>
+        <h2>Best-value picks</h2>
+      </div>
+      <a href="ec-compare.html" class="btn btn-outline">Compare all cars</a>
+    </div>
+    <div class="card-grid" id="pickGrid"></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Trending now</div>
+        <h2>Latest from the newsroom</h2>
+      </div>
+      <a href="ec-news.html" class="btn btn-outline">All articles</a>
+    </div>
+    <div class="card-grid" id="newsGrid"></div>
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<script src="ec-data.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+  renderChrome("home");
+
+  const PICKS = [
+    { car: getCarById("corolla-le"), label: "Best Under $25k" },
+    { car: getCarById("crv-hybrid"), label: "Best Family SUV" },
+    { car: getCarById("bolt-euv"), label: "Best EV Value" },
+  ];
+  document.getElementById("pickGrid").innerHTML = PICKS.map(({ car, label }) => `
+    <div class="card relative">
+      <span class="value-tag">${label}</span>
+      <div class="feature-icon">🚗</div>
+      <h3>${car.brand} ${car.model}</h3>
+      <p>${formatPrice(car.price)} &middot; ${car.powertrain} &middot; ${car.bodyType}${car.rangeMiles ? " · " + car.rangeMiles + " mi range" : car.mpgCity ? " · " + car.mpgCity + "/" + car.mpgHwy + " mpg" : ""}</p>
+      <a href="ec-compare.html?add=${car.id}">Compare this car &rarr;</a>
+    </div>
+  `).join("");
+
+  const latest = [...NEWS].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
+  document.getElementById("newsGrid").innerHTML = latest.map((n) => `
+    <div class="card news-card">
+      <div class="news-thumb">📰</div>
+      <span class="badge badge-cat">${n.category}</span>
+      <h3 style="margin-top:10px;">${n.title}</h3>
+      <div class="news-meta">${new Date(n.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} &middot; ${n.readTime} read</div>
+      <p>${n.excerpt}</p>
+      <a href="ec-news.html?article=${n.id}">Read more &rarr;</a>
+    </div>
+  `).join("");
+</script>
+</body>
+</html>
