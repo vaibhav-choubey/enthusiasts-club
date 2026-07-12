@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Garage — The Enthusiasts Club</title>
+<link rel="stylesheet" href="ec-style.css" />
+</head>
+<body>
+
+<div id="ec-header"></div>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <div class="eyebrow">Your account</div>
+    <h2 style="font-size:30px;">My Garage</h2>
+    <p style="color:var(--grey); max-width:640px;">Everything you've saved from Compare Cars and Find My Car, in one place. Free account, only used to remember your picks.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div class="container">
+    <div id="signedOutState" style="display:none;">
+      <div class="card" style="max-width:480px;">
+        <h3>Sign in to see your garage</h3>
+        <p>Nothing saved here yet because you're not signed in. Comparisons and Find My Car shortlists you save will show up here.</p>
+        <button class="btn btn-gold" onclick="openAuthModal()">Sign in / Create account</button>
+      </div>
+    </div>
+
+    <div id="signedInState" style="display:none;">
+      <div class="section-head"><div><h3 style="margin:0;">Saved Comparisons</h3></div></div>
+      <div class="card-grid" id="comparisonsGrid"></div>
+
+      <div class="section-head" style="margin-top:36px;"><div><h3 style="margin:0;">Saved Find My Car Shortlists</h3></div></div>
+      <div class="card-grid" id="shortlistsGrid"></div>
+    </div>
+  </div>
+</section>
+
+<div id="ec-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="ec-supabase.js"></script>
+<script src="ec-chrome.js"></script>
+<script>
+  renderChrome("garage");
+
+  function carNames(ids) {
+    return ids.map((id) => { const c = getCarById(id); return c ? `${c.brand} ${c.model}` : id; }).join(", ");
+  }
+
+  async function renderComparisons() {
+    const grid = document.getElementById("comparisonsGrid");
+    const rows = await listSavedComparisons();
+    if (rows.length === 0) {
+      grid.innerHTML = `<p style="color:var(--grey);">No saved comparisons yet — save one from the <a href="ec-compare.html">Compare Cars</a> page.</p>`;
+      return;
+    }
+    grid.innerHTML = rows.map((r) => `
+      <div class="card">
+        <h3 style="font-size:15px;">${r.label || carNames(r.car_ids)}</h3>
+        <p style="font-size:12.5px;">${carNames(r.car_ids)}</p>
+        <div class="news-meta">Saved ${new Date(r.created_at).toLocaleDateString()}</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <a class="btn btn-outline" style="padding:8px 14px; font-size:12.5px;" href="ec-compare.html?addAll=${r.car_ids.join(",")}">Open &rarr;</a>
+          <button class="btn btn-outline" style="padding:8px 14px; font-size:12.5px;" onclick="removeComparison('${r.id}')">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function renderShortlists() {
+    const grid = document.getElementById("shortlistsGrid");
+    const rows = await listSavedShortlists();
+    if (rows.length === 0) {
+      grid.innerHTML = `<p style="color:var(--grey);">No saved shortlists yet — save one from your <a href="ec-find-my-car.html">Find My Car</a> results.</p>`;
+      return;
+    }
+    grid.innerHTML = rows.map((r) => `
+      <div class="card">
+        <h3 style="font-size:15px;">${r.label || "Find My Car shortlist"}</h3>
+        <p style="font-size:12.5px;">${carNames(r.car_ids)}</p>
+        <div class="news-meta">Saved ${new Date(r.created_at).toLocaleDateString()}</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <a class="btn btn-outline" style="padding:8px 14px; font-size:12.5px;" href="ec-compare.html?addAll=${r.car_ids.join(",")}">Compare these &rarr;</a>
+          <button class="btn btn-outline" style="padding:8px 14px; font-size:12.5px;" onclick="removeShortlist('${r.id}')">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function removeComparison(id) { await deleteSavedComparison(id); renderComparisons(); }
+  async function removeShortlist(id) { await deleteSavedShortlist(id); renderShortlists(); }
+
+  async function init() {
+    await loadData();
+    const user = await ecGetUser();
+    if (!user) {
+      document.getElementById("signedOutState").style.display = "block";
+      return;
+    }
+    document.getElementById("signedInState").style.display = "block";
+    renderComparisons();
+    renderShortlists();
+  }
+  init();
+</script>
+</body>
+</html>

@@ -94,37 +94,44 @@
 
 <div id="ec-footer"></div>
 
-<script src="ec-data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="ec-supabase.js"></script>
 <script src="ec-chrome.js"></script>
 <script>
   renderChrome("home");
 
-  const PICKS = [
-    { car: getCarById("corolla-le"), label: "Best Under $25k" },
-    { car: getCarById("crv-hybrid"), label: "Best Family SUV" },
-    { car: getCarById("bolt-euv"), label: "Best EV Value" },
-  ];
-  document.getElementById("pickGrid").innerHTML = PICKS.map(({ car, label }) => `
-    <div class="card relative">
-      <span class="value-tag">${label}</span>
-      <div class="feature-icon">🚗</div>
-      <h3>${car.brand} ${car.model}</h3>
-      <p>${formatPrice(car.price)} &middot; ${car.powertrain} &middot; ${car.bodyType}${car.rangeMiles ? " · " + car.rangeMiles + " mi range" : car.mpgCity ? " · " + car.mpgCity + "/" + car.mpgHwy + " mpg" : ""}</p>
-      <a href="ec-compare.html?add=${car.id}">Compare this car &rarr;</a>
-    </div>
-  `).join("");
+  async function init() {
+    document.getElementById("pickGrid").innerHTML = `<p style="color:var(--grey);">Loading picks&hellip;</p>`;
+    document.getElementById("newsGrid").innerHTML = `<p style="color:var(--grey);">Loading news&hellip;</p>`;
+    await loadData();
 
-  const latest = [...NEWS].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
-  document.getElementById("newsGrid").innerHTML = latest.map((n) => `
-    <div class="card news-card">
-      <div class="news-thumb">📰</div>
-      <span class="badge badge-cat">${n.category}</span>
-      <h3 style="margin-top:10px;">${n.title}</h3>
-      <div class="news-meta">${new Date(n.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} &middot; ${n.readTime} read</div>
-      <p>${n.excerpt}</p>
-      <a href="ec-news.html?article=${n.id}">Read more &rarr;</a>
-    </div>
-  `).join("");
+    const pickIds = ["corolla-le", "crv-hybrid", "bolt-euv"];
+    const pickLabels = { "corolla-le": "Best Under $25k", "crv-hybrid": "Best Family SUV", "bolt-euv": "Best EV Value" };
+    const PICKS = pickIds.map((id) => ({ car: getCarById(id), label: pickLabels[id] })).filter((p) => p.car);
+
+    document.getElementById("pickGrid").innerHTML = PICKS.map(({ car, label }) => `
+      <div class="card relative">
+        <span class="value-tag">${label}</span>
+        <div class="feature-icon">🚗</div>
+        <h3>${car.brand} ${car.model}</h3>
+        <p>${formatPrice(car.price)} &middot; ${car.powertrain} &middot; ${car.bodyType}${car.rangeMiles ? " · " + car.rangeMiles + " mi range" : car.mpgCity ? " · " + car.mpgCity + "/" + car.mpgHwy + " mpg" : ""}</p>
+        <a href="ec-compare.html?add=${car.id}">Compare this car &rarr;</a>
+      </div>
+    `).join("");
+
+    const latest = [...NEWS].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
+    document.getElementById("newsGrid").innerHTML = latest.map((n) => `
+      <div class="card news-card">
+        <div class="news-thumb">📰</div>
+        <span class="badge badge-cat">${n.category}</span>
+        <h3 style="margin-top:10px;">${n.title}</h3>
+        <div class="news-meta">${new Date(n.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} &middot; ${n.readTime} read</div>
+        <p>${n.excerpt}</p>
+        <a href="ec-news.html?article=${n.id}">Read more &rarr;</a>
+      </div>
+    `).join("");
+  }
+  init();
 </script>
 </body>
 </html>

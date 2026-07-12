@@ -11,10 +11,11 @@
   template, edit title/subtitle/accent color, download a PNG via Canvas.
   Premium tier: pre-made poster designs, rendered the same way (procedurally,
   via Canvas, using a stylized silhouette instead of a licensed photo).
-  The "Unlock" flow is a DEMO checkout only — no real payment fields are
-  collected. For production, replace confirmDemoPurchase() with a real
-  payment flow (e.g. Stripe Checkout), verify the charge server-side, then
-  unlock the high-res download via a signed URL rather than client-side.
+  "Unlock" now creates a REAL Stripe Checkout session via the create-checkout
+  Supabase Edge Function, redirects to Stripe's hosted page, and on return
+  polls check-purchase to confirm payment before unlocking the download.
+  Stripe only actually charges a card once STRIPE_SECRET_KEY is set in the
+  Supabase project's secrets — see README notes at the bottom of this file.
 -->
 <style>
   .ps-controls .field { margin-bottom: 20px; }
@@ -193,20 +194,20 @@
 
 <div id="ec-footer"></div>
 
-<!-- Demo checkout modal -->
+<!-- Checkout status modal -->
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal">
-    <span class="demo-flag">DEMO CHECKOUT — no real charge</span>
-    <h4 id="modalTitle">Unlock poster</h4>
-    <p>This prototype simulates a purchase so you can see the unlock-and-download flow. In production this button would open a real payment provider, and the high-resolution file would only unlock after the charge is confirmed server-side.</p>
-    <div class="row">
-      <button class="cancel" onclick="closeModal()">Cancel</button>
-      <button class="confirm" onclick="confirmDemoPurchase()">Confirm demo purchase</button>
+    <span class="demo-flag" id="modalFlag">SECURE CHECKOUT</span>
+    <h4 id="modalTitle">Redirecting to checkout&hellip;</h4>
+    <p id="modalBody">You'll be taken to Stripe's secure checkout page to complete the purchase. Come back here afterward and your poster unlocks automatically.</p>
+    <div class="row" id="modalActions" style="display:none;">
+      <button class="cancel" onclick="closeModal()">Close</button>
     </div>
   </div>
 </div>
 
-<script src="ec-data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="ec-supabase.js"></script>
 <script src="ec-chrome.js"></script>
 <script>
 renderChrome("poster");
@@ -483,7 +484,6 @@ const PREMIUM_POSTERS = [
 ];
 
 let unlocked = new Set();
-let pendingUnlock = null;
 
 function buildGallery() {
   const grid = document.getElementById("galleryGrid");
@@ -499,7 +499,7 @@ function buildGallery() {
     meta.innerHTML = `<div class="name">${p.name}</div><div class="price">$${p.price.toFixed(2)} one-time</div>`;
     const btn = document.createElement("button");
     updatePremiumButton(btn, p);
-    btn.onclick = () => { unlocked.has(p.id) ? downloadPremiumPoster(p) : openModal(p); };
+    btn.onclick = () => { unlocked.has(p.id) ? downloadPremiumPoster(p) : handleUnlockClick(p); };
     meta.appendChild(btn);
     card.appendChild(meta);
     grid.appendChild(card);
@@ -511,18 +511,26 @@ function updatePremiumButton(btn, p) {
   if (unlocked.has(p.id)) { btn.textContent = "⬇ Download Poster"; btn.classList.add("owned"); }
   else { btn.textContent = `Unlock — $${p.price.toFixed(2)}`; btn.classList.remove("owned"); }
 }
-function openModal(p) {
-  pendingUnlock = p;
-  document.getElementById("modalTitle").textContent = `Unlock "${p.name}" — $${p.price.toFixed(2)}`;
+
+function showModal(flag, title, body, showClose) {
+  document.getElementById("modalFlag").textContent = flag;
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalBody").textContent = body;
+  document.getElementById("modalActions").style.display = showClose ? "flex" : "none";
   document.getElementById("modalBackdrop").classList.add("open");
 }
-function closeModal() { pendingUnlock = null; document.getElementById("modalBackdrop").classList.remove("open"); }
-function confirmDemoPurchase() {
-  if (!pendingUnlock) return;
-  unlocked.add(pendingUnlock.id);
-  closeModal();
-  buildGallery();
+function closeModal() { document.getElementById("modalBackdrop").classList.remove("open"); }
+
+async function handleUnlockClick(p) {
+  showModal("SECURE CHECKOUT", `Redirecting to checkout for "${p.name}"…`, "You'll be taken to Stripe's secure checkout page to complete the $" + p.price.toFixed(2) + " purchase.", false);
+  try {
+    const { url } = await startCheckout(p.id);
+    window.location.href = url;
+  } catch (err) {
+    showModal("NOT READY YET", "Checkout isn't live yet", "The site owner hasn't connected a Stripe account to this project yet, so real payments aren't accepted here for the moment. Please check back soon.", true);
+  }
 }
+
 function downloadPremiumPoster(p) {
   const full = document.createElement("canvas");
   full.width = 1200; full.height = 1600;
@@ -534,6 +542,40 @@ function downloadPremiumPoster(p) {
   link.click();
 }
 
+/* Handle the redirect back from Stripe (?purchase=success&session_id=...) */
+async function handlePurchaseReturn() {
+  const params = new URLSearchParams(location.search);
+  const purchase = params.get("purchase");
+  if (!purchase) return;
+
+  if (purchase === "cancelled") {
+    showModal("CHECKOUT CANCELLED", "No charge was made", "You cancelled checkout before it completed — no payment was taken.", true);
+    history.replaceState({}, "", location.pathname);
+    return;
+  }
+
+  if (purchase === "success") {
+    const sessionId = params.get("session_id");
+    showModal("CONFIRMING PAYMENT", "Confirming your payment…", "One moment while we confirm the charge with Stripe.", false);
+    let result = null;
+    for (let i = 0; i < 5 && (!result || result.status === "pending"); i++) {
+      result = await checkPurchase(sessionId);
+      if (!result || result.status === "pending") await new Promise((r) => setTimeout(r, 1500));
+    }
+    history.replaceState({}, "", location.pathname);
+    if (result && result.status === "paid") {
+      unlocked.add(result.poster_id);
+      buildGallery();
+      switchTab("premium");
+      const poster = PREMIUM_POSTERS.find((p) => p.id === result.poster_id);
+      if (poster) downloadPremiumPoster(poster);
+      showModal("PAYMENT CONFIRMED", "You're all set!", `"${poster ? poster.name : "Your poster"}" is unlocked and downloading now.`, true);
+    } else {
+      showModal("STILL PROCESSING", "Almost there", "Stripe hasn't confirmed the payment yet. If you completed checkout, refresh this page in a minute and your poster will unlock.", true);
+    }
+  }
+}
+
 /* ---------- TABS & INIT ---------- */
 function switchTab(tab) {
   document.getElementById("panelFree").style.display = tab === "free" ? "block" : "none";
@@ -542,7 +584,7 @@ function switchTab(tab) {
   document.getElementById("tabBtnPremium").classList.toggle("active", tab === "premium");
 }
 
-function init() {
+async function init() {
   buildTemplateGrid();
   buildColorSwatches();
   setupUpload();
@@ -550,6 +592,7 @@ function init() {
   document.getElementById("subtitleInput").addEventListener("input", redrawFree);
   redrawFree();
   buildGallery();
+  await handlePurchaseReturn();
 }
 init();
 </script>
